@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音樂感知實驗</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px; /* 增加整體內容最大寬度 */
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+            padding-bottom: 50px; /* 為頁腳預留空間 */
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            max-width: 960px; /* 容器最大寬度，略小於 body */
+            padding: 30px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #3a3a3a;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
+        .question-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .question-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        .radio-group label {
+            font-weight: normal;
+            margin-right: 15px;
+        }
+        input[type="radio"] {
+            margin-right: 5px;
+        }
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: calc(100% - 12px);
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            width: calc(100% - 12px);
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.9em;
+            margin-top: 5px;
+            display: none; /* 預設隱藏 */
+        }
+        .form-section {
+            display: none; /* 預設隱藏所有表單區塊 */
+        }
+        #intro-screen, #demographics-screen, #experiment-screen, #completion-screen {
+            display: none; /* 控制顯示/隱藏各階段 */
+        }
+        #current-stimulus-info {
+            margin-top: 15px;
+            font-size: 1.1em;
+            color: #555;
+            font-weight: bold;
+        }
+        #play-count-display {
+            font-weight: normal;
+            font-size: 0.9em;
+            margin-left: 10px;
+            color: #777;
+        }
+        /* Style for visualization container */
+        #visualization {
+            position: relative; /* 關鍵：讓內部的絕對定位元素相對於此定位 */
+            width: 100%;
+            height: 100px; /* 給予一個固定高度，確保進度條和波形有空間 */
+            margin-top: 20px;
+            background-color: #f0f0f0; /* 可選：背景色 */
+            border-radius: 8px;
+            overflow: hidden; /* 確保內容不會溢出 */
+        }
+        /* Styles for the progress bar */
+        #progress-bar-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        #progress-bar {
+            width: 0%; /* 初始寬度 */
+            height: 100%;
+            background-color: #4285f4;
+            /* transition 屬性已從 JS 中移除，改為 JS 實時更新 */
+        }
+        /* Styles for the time indicator */
+        #time-indicator {
+            position: absolute;
+            top: 10px; /* 調整位置 */
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            font-weight: bold;
+            color: #555;
+            white-space: nowrap; /* 防止時間換行 */
+        }
+        /* Styles for the waveform bars (random) */
+        .waveform-bar {
+            position: absolute;
+            bottom: 25px; /* 放在進度條上方 */
+            background-color: #87CEFA;
+            border-radius: 2px;
+            opacity: 0.7;
+            transform-origin: bottom; /* 從底部縮放 */
+        }
+        .submit-button {
+            background-color: #28a745;
+            color: white;
+        }
+        .submit-button:hover {
+            background-color: #218838;
+        }
+        #completion-screen p {
+            margin-bottom: 10px;
+        }
+        .results {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .results h3 {
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        .results pre {
+            white-space: pre-wrap; /* 保持格式並自動換行 */
+            word-wrap: break-word;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            max-height: 300px; /* 限制高度 */
+            overflow-y: auto; /* 超出時滾動 */
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.8em;
+            color: #777;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="intro-screen" class="form-section">
+            <h1>音樂感知實驗</h1>
+            <p>歡迎您參與本次音樂感知實驗。在實驗開始前，請您仔細閱讀以下說明：</p>
+            <ul>
+                <li>本實驗旨在研究個人對不同音樂片段的感知與反應。</li>
+                <li>您將會聽到一系列音樂片段，每個片段播放結束後會出現相關問題。</li>
+                <li>請您根據您的個人感受和判斷誠實作答。</li>
+                <li>實驗過程中請保持專注，避免外界干擾。</li>
+                <li>您的所有回答都將匿名處理，僅用於學術研究。</li>
+            </ul>
+            <button onclick="startExperiment()">開始實驗</button>
+        </div>
+
+        <div id="demographics-screen" class="form-section">
+            <h2>基本資料</h2>
+            <div class="question-group">
+                <label for="age">年齡：</label>
+                <input type="number" id="age" min="18" max="99" required>
+                <span class="error-message" id="age-error">請輸入有效的年齡 (18-99)。</span>
+            </div>
+            <div class="question-group">
+                <label for="gender">性別：</label>
+                <select id="gender" required>
+                    <option value="">請選擇</option>
+                    <option value="male">男</option>
+                    <option value="female">女</option>
+                    <option value="non-binary">非二元性別</option>
+                    <option value="prefer-not-to-say">不願透露</option>
+                </select>
+                <span class="error-message" id="gender-error">請選擇您的性別。</span>
+            </div>
+            <div class="question-group">
+                <label for="musical-background">您的音樂背景 (例如：學習樂器、聲樂、作曲等)：</label>
+                <input type="text" id="musical-background">
+            </div>
+            <div class="question-group">
+                <label for="theory">是否具備樂理知識？</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="theory" value="yes" required>是</label>
+                    <label><input type="radio" name="theory" value="no">否</label>
+                    <label><input type="radio" name="theory" value="some">略懂</label>
+                </div>
+                <span class="error-message" id="theory-error">請選擇您是否具備樂理知識。</span>
+            </div>
+            <div class="question-group">
+                <label for="listen-frequency">平均每週聽音樂的頻率：</label>
+                <select id="listen-frequency" required>
+                    <option value="">請選擇</option>
+                    <option value="less-than-1hr">少於1小時</option>
+                    <option value="1-3hr">1-3小時</option>
+                    <option value="3-7hr">3-7小時</option>
+                    <option value="7-14hr">7-14小時</option>
+                    <option value="more-than-14hr">多於14小時</option>
+                </select>
+                <span class="error-message" id="listen-frequency-error">請選擇聽音樂頻率。</span>
+            </div>
+             <div class="question-group">
+                <label for="live-frequency">平均每月參加現場音樂活動 (如音樂會、演唱會、Live House) 的頻率：</label>
+                <select id="live-frequency" required>
+                    <option value="">請選擇</option>
+                    <option value="never">從未</option>
+                    <option value="less-than-1">少於1次</option>
+                    <option value="1-2">1-2次</option>
+                    <option value="3-4">3-4次</option>
+                    <option value="more-than-4">多於4次</option>
+                </select>
+                <span class="error-message" id="live-frequency-error">請選擇參加現場音樂活動頻率。</span>
+            </div>
+            <div class="question-group">
+                <label for="listening-environment">您通常在什麼環境下聽音樂？</label>
+                <input type="text" id="listening-environment" placeholder="例如：在家、通勤、工作時...">
+            </div>
+            <div class="question-group">
+                <label for="participant-id">請輸入您的參與者 ID (如適用，若無則留空)：</label>
+                <input type="text" id="participant-id">
+            </div>
+            <button onclick="submitDemographics()">提交基本資料</button>
+        </div>
+
+        <div id="experiment-screen" class="form-section">
+            <h2 id="current-stimulus-info">第 <span>1</span> / <span>N</span> 個音樂片段</h2>
+            <div id="stimulus-container">
+                <h2>請您仔細聆聽這段音樂。您可以點擊「播放音樂」按鈕播放，若需重聽可再次點擊。</h2>
+                <button id="play-button" onclick="playCurrentStimulus()">播放音樂</button>
+                <span id="play-count-display"> (播放次數：0)</span>
+                <div id="visualization"></div>
+            </div>
+
+            <div id="question-area" class="question-group">
+                <h3>問題：</h3>
+                <div id="question-content">
+                    </div>
+                <button id="next-button" onclick="submitAnswer()" disabled>提交答案並前往下一段</button>
+                <span class="error-message" id="answer-error" style="display: none;">請回答所有問題。</span>
+            </div>
+        </div>
+
+        <div id="completion-screen" class="form-section">
+            <h2>實驗完成！</h2>
+            <p>感謝您完成本次音樂感知實驗。您的參與對我們的研究非常重要！</p>
+            <p>如果您想查看您的實驗結果，請點擊下方按鈕。</p>
+            <button onclick="displayResults()">查看實驗結果</button>
+            <div class="results" style="display: none;">
+                <h3>您的實驗結果總結：</h3>
+                <pre id="experiment-results-json"></pre>
+                <button onclick="downloadResults()">下載結果</button>
+            </div>
+            <button onclick="resetExperiment()">重新開始實驗</button>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2025 音樂感知實驗. 版權所有.</p>
+    </footer>
+
+    <script>
+        // Tone.js 全局播放器實例
+        let player = new Tone.Player().toDestination();
+        // 確保 Tone.context 處於運行狀態，避免首次播放無聲
+        // 通常在用戶首次互動時調用 Tone.context.resume()
+        document.documentElement.addEventListener('mousedown', () => {
+            if (Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+        });
+
+
+        // 全局變數用於控制動畫幀和計時器
+        let animationFrameId = null; 
+        let intervalId = null; // 用於波形隨機高度的定時器，現在併入 requestAnimationFrame
+
+        // 實驗數據結構
+        const experimentResults = {
+            demographics: {},
+            stimuli: []
+        };
+
+        // 刺激列表 (範例數據，請替換為您的實際音樂檔案路徑和信息)
+        // 注意：這裡的檔案路徑是相對於 HTML 文件的路徑
+        const allStimuli = [
+            { 
+                file: "music/stimulus1.mp3", 
+                genre: "Classical", 
+                index: 1, 
+                questions: [
+                    { id: "q1_1", type: "radio", text: "這段音樂讓您感到愉悅嗎？", options: ["非常不愉悅", "不愉悅", "中立", "愉悅", "非常愉悅"] },
+                    { id: "q1_2", type: "text", text: "您對這段音樂有什麼感受？" }
+                ]
+            },
+            { 
+                file: "music/stimulus2.mp3", 
+                genre: "Jazz", 
+                index: 2, 
+                questions: [
+                    { id: "q2_1", type: "radio", text: "這段音樂的節奏感如何？", options: ["很慢", "慢", "中等", "快", "很快"] },
+                    { id: "q2_2", type: "slider", text: "您對這段音樂的熟悉程度？", min: 0, max: 100, step: 1, labels: ["完全不熟悉", "非常熟悉"] }
+                ]
+            },
+            // ... 更多刺激，請替換為您的實際數據
+            { 
+                file: "music/stimulus3.mp3", 
+                genre: "Electronic", 
+                index: 3, 
+                questions: [
+                    { id: "q3_1", type: "radio", text: "這段音樂的複雜度如何？", options: ["非常簡單", "簡單", "中等", "複雜", "非常複雜"] },
+                    { id: "q3_2", type: "checkbox", text: "這段音樂喚起了您哪些情緒？(可多選)", options: ["平靜", "興奮", "悲傷", "快樂", "焦慮", "放鬆"] }
+                ]
+            }
+        ];
+
+        let selectedStimuli = []; // 實際實驗中使用的刺激列表（可能經過打亂）
+        let currentStimulusIndex = 0;
+        let playCountsPerStimulus = []; // 每個刺激的播放次數
+        let hasPlayedStimulus = false; // 當前刺激是否被播放過（至少一次）
+
+        // 頁面控制
+        function showScreen(screenId) {
+            document.querySelectorAll('.form-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            document.getElementById(screenId).style.display = 'block';
+        }
+
+        function startExperiment() {
+            showScreen('demographics-screen');
+        }
+
+        function submitDemographics() {
+            // 驗證基本資料
+            const age = document.getElementById("age").value;
+            const gender = document.getElementById("gender").value;
+            const theoryRadios = document.querySelectorAll('input[name="theory"]:checked');
+            const listenFrequency = document.getElementById("listen-frequency").value;
+            const liveFrequency = document.getElementById("live-frequency").value;
+
+            let isValid = true;
+
+            // 清除之前的錯誤訊息
+            document.querySelectorAll('.error-message').forEach(span => span.style.display = 'none');
+
+            // 驗證年齡
+            if (age === "" || isNaN(age) || age < 18 || age > 99) {
+                document.getElementById("age-error").style.display = 'block';
+                isValid = false;
+            }
+            // 驗證性別
+            if (gender === "") {
+                document.getElementById("gender-error").style.display = 'block';
+                isValid = false;
+            }
+            // 驗證樂理知識
+            if (theoryRadios.length === 0) {
+                document.getElementById("theory-error").style.display = 'block';
+                isValid = false;
+            }
+            // 驗證聽音樂頻率
+            if (listenFrequency === "") {
+                document.getElementById("listen-frequency-error").style.display = 'block';
+                isValid = false;
+            }
+            // 驗證現場音樂活動頻率
+            if (liveFrequency === "") {
+                document.getElementById("live-frequency-error").style.display = 'block';
+                isValid = false;
+            }
+            
+            if (!isValid) {
+                return; // 如果有錯誤，停止提交
+            }
+
+            // 收集基本資料
+            experimentResults.demographics = {
+                age: age,
+                gender: gender,
+                musicalBackground: document.getElementById("musical-background").value,
+                theory: theoryRadios.length > 0 ? theoryRadios[0].value : "",
+                listenFrequency: listenFrequency,
+                liveFrequency: liveFrequency,
+                listeningEnvironment: document.getElementById("listening-environment").value,
+                participantId: document.getElementById("participant-id").value
+            };
+
+            // 初始化刺激和播放計數
+            selectedStimuli = shuffleArray([...allStimuli]); // 打亂刺激順序
+            playCountsPerStimulus = new Array(selectedStimuli.length).fill(0);
+            experimentResults.stimuli = selectedStimuli.map(stimulus => ({
+                id: stimulus.index, // 使用原始 index 作為 ID
+                file: stimulus.file,
+                genre: stimulus.genre,
+                playEvents: [],
+                answers: {}
+            }));
+
+            currentStimulusIndex = 0;
+            hasPlayedStimulus = false;
+
+            showScreen('experiment-screen');
+            loadStimulus();
+        }
+
+        // 加載當前刺激並顯示相關信息
+        function loadStimulus() {
+            if (currentStimulusIndex < selectedStimuli.length) {
+                const stimulus = selectedStimuli[currentStimulusIndex];
+                document.getElementById('current-stimulus-info').innerHTML = 
+                    `第 <span>${currentStimulusIndex + 1}</span> / <span>${selectedStimuli.length}</span> 個音樂片段`;
+                
+                // 重置播放按鈕狀態
+                const playButton = document.getElementById("play-button");
+                playButton.disabled = false;
+                playButton.textContent = "播放音樂";
+                updatePlayCountDisplay(playCountsPerStimulus[currentStimulusIndex]);
+
+                // 清除並創建新的視覺化元素
+                clearVisualization();
+
+                // 載入問題
+                loadQuestions(stimulus.questions);
+
+                // 禁用 Next 按鈕直到播放過音樂
+                disableNextButton();
+                hasPlayedStimulus = false; // 重置播放標記
+            } else {
+                // 所有刺激都已播放完畢
+                showScreen('completion-screen');
+            }
+        }
+
+        function playCurrentStimulus() {
+            const stimulus = selectedStimuli[currentStimulusIndex];
+            
+            playCountsPerStimulus[currentStimulusIndex]++;
+            const currentPlayCount = playCountsPerStimulus[currentStimulusIndex];
+            
+            const playStartTime = new Date();
+            
+            if (Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+            
+            const playButton = document.getElementById("play-button");
+            playButton.disabled = true;
+            playButton.textContent = "載入中..."; // 顯示載入狀態
+            
+            updatePlayCountDisplay(currentPlayCount);
+            
+            // 每次播放前確保 player 已經停止並準備好
+            player.stop(); // 停止任何正在播放的音頻
+            player.dispose(); // 釋放舊資源
+            player = new Tone.Player().toDestination(); // 創建新的 player 實例
+
+            player.load(stimulus.file).then(() => {
+                // 音頻已加載完成後開始播放
+                const duration = player.buffer.duration;
+                player.start();
+                
+                playButton.textContent = "播放中..."; // 顯示播放狀態
+
+                // 創建音頻可視化 - 實時更新進度條和時間
+                createAudioProgress(duration); // 這裡傳入的 duration 應該是 player.buffer.duration
+
+                // 監聽播放結束事件 (player.on('stop') 比 setTimeout 更精確)
+                // 注意：Tone.Player 的 stop 事件會在播放結束時觸發
+                player.on('stop', () => {
+                    playButton.disabled = false;
+                    playButton.textContent = "播放音樂";
+                    hasPlayedStimulus = true;
+                    enableNextButton();
+                    clearVisualization(); // 播放結束後清除視覺化
+
+                    const playEndTime = new Date();
+                    experimentResults.stimuli[currentStimulusIndex].playEvents.push({
+                        playCount: currentPlayCount,
+                        playStartTime: playStartTime.toISOString(),
+                        playEndTime: playEndTime.toISOString(),
+                        playDurationMs: playEndTime - playStartTime,
+                        fileInfo: {
+                            filename: stimulus.file,
+                            genre: stimulus.genre,
+                            originalIndex: stimulus.index
+                        }
+                    });
+                });
+
+            }).catch(error => {
+                console.error("音頻載入失敗:", error);
+                alert("音頻載入失敗，請檢查檔案路徑或網路連接。");
+                playButton.disabled = false;
+                playButton.textContent = "播放音樂";
+            });
+        }
+
+        function updatePlayCountDisplay(count) {
+            document.getElementById("play-count-display").textContent = ` (播放次數：${count})`;
+        }
+
+        // 創建音頻進度條可視化 (核心修改)
+        function createAudioProgress(duration) {
+            // 清除舊的可視化並停止之前的動畫/定時器
+            clearVisualization(); 
+            
+            const viz = document.getElementById("visualization");
+            
+            // --- 進度條部分 ---
+            const progressBarContainer = document.createElement("div");
+            progressBarContainer.id = "progress-bar-container"; // 添加ID方便CSS定位
+            progressBarContainer.style.position = "absolute";
+            progressBarContainer.style.bottom = "0";
+            progressBarContainer.style.left = "0";
+            progressBarContainer.style.width = "100%";
+            progressBarContainer.style.height = "10px";
+            progressBarContainer.style.backgroundColor = "#e0e0e0"; 
+            progressBarContainer.style.borderRadius = "5px";
+            progressBarContainer.style.overflow = "hidden";
+            viz.appendChild(progressBarContainer);
+
+            const progressBar = document.createElement("div");
+            progressBar.id = "progress-bar"; // 添加ID方便CSS定位
+            progressBar.style.width = "0%"; 
+            progressBar.style.height = "100%";
+            progressBar.style.backgroundColor = "#4285f4";
+            // !!! 移除 transition 屬性，改為 JS 實時更新 !!!
+            progressBarContainer.appendChild(progressBar);
+
+
+            // --- 時間指示器部分 ---
+            const timeIndicator = document.createElement("div");
+            timeIndicator.id = "time-indicator"; // 添加ID方便CSS定位
+            timeIndicator.style.position = "absolute";
+            timeIndicator.style.top = "10px"; 
+            timeIndicator.style.left = "50%";
+            timeIndicator.style.transform = "translateX(-50%)"; 
+            timeIndicator.style.fontSize = "16px"; 
+            timeIndicator.style.fontWeight = "bold";
+            timeIndicator.style.color = "#555"; 
+            timeIndicator.style.whiteSpace = "nowrap"; 
+            timeIndicator.textContent = `0:00 / ${formatTime(duration)}`; 
+            viz.appendChild(timeIndicator);
+
+
+            // --- 波形顯示（簡化版 - 隨機跳動）---
+            // 這個波形只是隨機動態效果，不與音樂頻譜掛鉤
+            const waveformBars = [];
+            const numBars = 50;
+            const barWidth = 100 / numBars; 
+
+            for (let i = 0; i < numBars; i++) {
+                const bar = document.createElement("div");
+                bar.className = "waveform-bar"; // 添加 class 方便 CSS 樣式
+                bar.style.width = `${barWidth}%`;
+                bar.style.height = `${Math.random() * 60 + 5}px`; // 初始隨機高度
+                bar.style.left = `${i * barWidth}%`;
+                viz.appendChild(bar);
+                waveformBars.push(bar); 
+            }
+
+            // --- 實時更新函數 ---
+            function updateVisualization() {
+                if (player && player.state === "started") {
+                    const currentTime = player.currentTime; 
+                    const progress = (currentTime / duration) * 100;
+                    
+                    // 更新進度條
+                    progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+
+                    // 更新時間指示器
+                    timeIndicator.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+
+                    // 更新波形（仍然是隨機的，但與整體更新循環綁定）
+                    waveformBars.forEach(bar => {
+                        const newHeight = Math.random() * 60 + 5;
+                        bar.style.height = `${newHeight}px`;
+                    });
+
+                    // 繼續請求下一幀，直到播放結束
+                    if (currentTime < duration) { // 這裡使用 currentTime < duration 來判斷是否繼續
+                        animationFrameId = requestAnimationFrame(updateVisualization);
+                    } else {
+                        // 播放結束，確保進度條達到100%，時間顯示為總時長
+                        progressBar.style.width = '100%';
+                        timeIndicator.textContent = `${formatTime(duration)} / ${formatTime(duration)}`;
+                        cancelAnimationFrame(animationFrameId);
+                        animationFrameId = null; // 重置 ID
+                    }
+                } else {
+                    // 如果播放器停止了 (例如，手動停止或自然結束), 停止動畫
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null; // 重置 ID
+                }
+            }
+
+            // 啟動實時更新循環
+            animationFrameId = requestAnimationFrame(updateVisualization);
+
+            // 格式化時間函數 (放在這裡方便 createAudioProgress 內部使用)
+            function formatTime(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = Math.floor(seconds % 60);
+                return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // 清除舊的可視化並停止所有相關動畫/定時器
+        function clearVisualization() {
+            const viz = document.getElementById("visualization");
+            if (viz) {
+                viz.innerHTML = ''; // 清空所有子元素
+            }
+            // 停止任何正在進行的 requestAnimationFrame 動畫
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            // 如果有其他 setInterval 需要停止，也要在這裡處理
+            if (intervalId) { // 雖然在新的 createAudioProgress 中已經不使用這個 intervalId
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+            // 波形條的 setInterval 在新版中已經整合到 requestAnimationFrame 循環中，
+            // 透過 viz.innerHTML = '' 移除 DOM 元素會自動清除其上的事件監聽，
+            // 所以不再需要額外清除每個 bar 的 setInterval。
+        }
+
+
+        // 加載問題到問題區塊
+        function loadQuestions(questions) {
+            const questionContentDiv = document.getElementById("question-content");
+            questionContentDiv.innerHTML = ""; // 清空舊問題
+
+            questions.forEach(q => {
+                const qDiv = document.createElement("div");
+                qDiv.className = "question-group";
+                qDiv.setAttribute("data-question-id", q.id); // 為每個問題添加 ID
+
+                const label = document.createElement("label");
+                label.textContent = q.text;
+                label.setAttribute("for", q.id);
+                qDiv.appendChild(label);
+
+                const errorSpan = document.createElement("span");
+                errorSpan.className = "error-message";
+                errorSpan.id = `error-${q.id}`;
+                errorSpan.textContent = "請回答此問題。"; // 預設錯誤訊息
+                errorSpan.style.display = "none";
+                qDiv.appendChild(errorSpan);
+
+                if (q.type === "radio") {
+                    const radioGroupDiv = document.createElement("div");
+                    radioGroupDiv.className = "radio-group";
+                    q.options.forEach((optionText, index) => {
+                        const optionId = `${q.id}_option_${index}`;
+                        const radioLabel = document.createElement("label");
+                        const radioInput = document.createElement("input");
+                        radioInput.type = "radio";
+                        radioInput.name = q.id; // 同一個問題的 radio 使用相同的 name
+                        radioInput.value = optionText;
+                        radioInput.id = optionId; // 每個 radio 有唯一 ID
+                        radioInput.required = true; // 設置為必選
+                        radioLabel.appendChild(radioInput);
+                        radioLabel.append(optionText);
+                        radioGroupDiv.appendChild(radioLabel);
+                    });
+                    qDiv.appendChild(radioGroupDiv);
+                } else if (q.type === "text") {
+                    const textarea = document.createElement("textarea");
+                    textarea.id = q.id;
+                    textarea.rows = 4;
+                    textarea.placeholder = "請在這裡輸入您的回答...";
+                    qDiv.appendChild(textarea);
+                } else if (q.type === "slider") {
+                    const sliderContainer = document.createElement("div");
+                    sliderContainer.style.display = "flex";
+                    sliderContainer.style.alignItems = "center";
+                    sliderContainer.style.marginTop = "10px";
+
+                    const sliderInput = document.createElement("input");
+                    sliderInput.type = "range";
+                    sliderInput.id = q.id;
+                    sliderInput.min = q.min;
+                    sliderInput.max = q.max;
+                    sliderInput.step = q.step;
+                    sliderInput.value = (q.min + q.max) / 2; // 預設值為中間
+                    sliderInput.style.flexGrow = "1"; // 讓滑塊佔據更多空間
+
+                    const sliderValueDisplay = document.createElement("span");
+                    sliderValueDisplay.style.marginLeft = "10px";
+                    sliderValueDisplay.style.minWidth = "30px"; // 確保空間足夠顯示
+                    sliderValueDisplay.textContent = sliderInput.value;
+
+                    sliderInput.addEventListener("input", () => {
+                        sliderValueDisplay.textContent = sliderInput.value;
+                    });
+
+                    sliderContainer.appendChild(sliderInput);
+                    sliderContainer.appendChild(sliderValueDisplay);
+                    qDiv.appendChild(sliderContainer);
+
+                    if (q.labels && q.labels.length === 2) {
+                        const labelsDiv = document.createElement("div");
+                        labelsDiv.style.display = "flex";
+                        labelsDiv.style.justifyContent = "space-between";
+                        labelsDiv.style.marginTop = "5px";
+                        const minLabel = document.createElement("span");
+                        minLabel.textContent = q.labels[0];
+                        const maxLabel = document.createElement("span");
+                        maxLabel.textContent = q.labels[1];
+                        labelsDiv.appendChild(minLabel);
+                        labelsDiv.appendChild(maxLabel);
+                        qDiv.appendChild(labelsDiv);
+                    }
+                } else if (q.type === "checkbox") {
+                    const checkboxGroupDiv = document.createElement("div");
+                    checkboxGroupDiv.className = "checkbox-group"; // 添加 class
+                    q.options.forEach((optionText, index) => {
+                        const optionId = `${q.id}_option_${index}`;
+                        const checkboxLabel = document.createElement("label");
+                        const checkboxInput = document.createElement("input");
+                        checkboxInput.type = "checkbox";
+                        checkboxInput.name = q.id; 
+                        checkboxInput.value = optionText;
+                        checkboxInput.id = optionId;
+                        checkboxLabel.appendChild(checkboxInput);
+                        checkboxLabel.append(optionText);
+                        checkboxGroupDiv.appendChild(checkboxLabel);
+                    });
+                    qDiv.appendChild(checkboxGroupDiv);
+                } else if (q.type === "component") { // 新增的 component 類型問題
+                     const componentRadioContainer = document.createElement('div');
+                     componentRadioContainer.className = 'radio-group';
+                     q.options.forEach((option, index) => {
+                         const optionId = `${q.id}_option_${index}`;
+                         const labelEl = document.createElement('label');
+                         const radioInput = document.createElement('input');
+                         radioInput.type = 'radio';
+                         radioInput.name = q.id;
+                         radioInput.value = option;
+                         radioInput.id = optionId;
+                         labelEl.appendChild(radioInput);
+                         labelEl.append(option);
+                         componentRadioContainer.appendChild(labelEl);
+                     });
+
+                     // 添加「其他」選項
+                     const otherLabel = document.createElement('label');
+                     const otherRadio = document.createElement('input');
+                     otherRadio.type = 'radio';
+                     otherRadio.name = q.id;
+                     otherRadio.value = "other";
+                     otherRadio.id = `${q.id}_other_option`;
+                     otherLabel.appendChild(otherRadio);
+                     otherLabel.innerHTML += `其他 (請說明：`;
+                     const otherTextInput = document.createElement('input');
+                     otherTextInput.type = 'text';
+                     otherTextInput.id = `${q.id}_other_text`; // 確保ID唯一性
+                     otherTextInput.style.marginLeft = '5px';
+                     otherTextInput.style.width = '100px';
+                     otherTextInput.style.display = 'none'; // 預設隱藏
+                     otherLabel.appendChild(otherTextInput);
+                     componentRadioContainer.appendChild(otherLabel);
+                     qDiv.appendChild(componentRadioContainer);
+
+                     // 監聽 radio 的變化來顯示/隱藏其他輸入框
+                     componentRadioContainer.addEventListener('change', (event) => {
+                         const currentOtherText = document.getElementById(`${q.id}_other_text`);
+                         if (currentOtherText) {
+                             if (event.target.value === 'other') {
+                                 currentOtherText.style.display = 'inline-block';
+                             } else {
+                                 currentOtherText.style.display = 'none';
+                                 currentOtherText.value = ''; // 清空內容
+                             }
+                         }
+                     });
+                     // 確保初始狀態隱藏
+                     const initialOtherText = document.getElementById(`${q.id}_other_text`);
+                     if (initialOtherText) {
+                         initialOtherText.style.display = 'none';
+                     }
+                 }
+                questionContentDiv.appendChild(qDiv);
+            });
+            // 啟用問題區塊（在 loadQuestions 結束時）
+            enableQuestionArea();
+        }
+
+        // 提交答案
+        function submitAnswer() {
+            const currentStimulus = selectedStimuli[currentStimulusIndex];
+            const currentAnswers = {};
+            let allAnswered = true;
+            const answerErrorSpan = document.getElementById("answer-error");
+            answerErrorSpan.style.display = "none"; // 每次提交前隱藏錯誤訊息
+
+            currentStimulus.questions.forEach(q => {
+                const errorId = `error-${q.id}`;
+                const errorSpan = document.getElementById(errorId);
+                if (errorSpan) errorSpan.style.display = "none"; // 清除特定問題的錯誤
+
+                if (q.type === "radio") {
+                    const selectedRadio = document.querySelector(`input[name="${q.id}"]:checked`);
+                    if (selectedRadio) {
+                        if (selectedRadio.value === "other" && q.type === "component") { // 處理 'other' 選項
+                            const otherTextInput = document.getElementById(`${q.id}_other_text`);
+                            currentAnswers[q.id] = otherTextInput ? otherTextInput.value : "其他 (未填寫)";
+                            if (!otherTextInput || otherTextInput.value.trim() === '') {
+                                allAnswered = false;
+                                if (errorSpan) {
+                                    errorSpan.textContent = "請說明「其他」。";
+                                    errorSpan.style.display = "block";
+                                }
+                            }
+                        } else {
+                            currentAnswers[q.id] = selectedRadio.value;
+                        }
+                    } else {
+                        allAnswered = false;
+                        if (errorSpan) errorSpan.style.display = "block";
+                    }
+                } else if (q.type === "text") {
+                    const textarea = document.getElementById(q.id);
+                    currentAnswers[q.id] = textarea.value.trim();
+                    // 根據需求判斷文本框是否必須填寫
+                    // if (currentAnswers[q.id] === "") {
+                    //     allAnswered = false;
+                    //     if (errorSpan) errorSpan.style.display = "block";
+                    // }
+                } else if (q.type === "slider") {
+                    const slider = document.getElementById(q.id);
+                    currentAnswers[q.id] = slider.value;
+                } else if (q.type === "checkbox") {
+                    const checkedCheckboxes = Array.from(document.querySelectorAll(`input[name="${q.id}"]:checked`))
+                                                    .map(cb => cb.value);
+                    currentAnswers[q.id] = checkedCheckboxes;
+                    // 根據需求判斷多選框是否必須至少選一個
+                    // if (checkedCheckboxes.length === 0) {
+                    //     allAnswered = false;
+                    //     if (errorSpan) errorSpan.style.display = "block";
+                    // }
+                } else if (q.type === "component") { // 處理 component 類型
+                    const selectedRadio = document.querySelector(`input[name="${q.id}"]:checked`);
+                    if (selectedRadio) {
+                        if (selectedRadio.value === "other") {
+                            const otherTextInput = document.getElementById(`${q.id}_other_text`);
+                            currentAnswers[q.id] = otherTextInput ? otherTextInput.value.trim() : "其他 (未填寫)";
+                            if (!otherTextInput || otherTextInput.value.trim() === '') {
+                                allAnswered = false;
+                                if (errorSpan) {
+                                    errorSpan.textContent = "請說明「其他」。";
+                                    errorSpan.style.display = "block";
+                                }
+                            }
+                        } else {
+                            currentAnswers[q.id] = selectedRadio.value;
+                        }
+                    } else {
+                        allAnswered = false;
+                        if (errorSpan) errorSpan.style.display = "block";
+                    }
+                }
+            });
+
+            // 檢查音樂是否至少播放過一次
+            if (!hasPlayedStimulus) {
+                allAnswered = false;
+                alert("請至少播放一次音樂後再提交答案。");
+            }
+
+            if (!allAnswered) {
+                answerErrorSpan.textContent = "請回答所有必填問題或播放音樂。";
+                answerErrorSpan.style.display = "block";
+                return;
+            }
+
+            experimentResults.stimuli[currentStimulusIndex].answers = currentAnswers;
+            currentStimulusIndex++;
+            loadStimulus();
+        }
+
+        function disableQuestionArea() {
+            document.getElementById("question-area").style.pointerEvents = "none";
+            document.getElementById("question-area").style.opacity = "0.6";
+        }
+
+        function enableQuestionArea() {
+            document.getElementById("question-area").style.pointerEvents = "auto";
+            document.getElementById("question-area").style.opacity = "1";
+        }
+
+        function enableNextButton() {
+            const nextButton = document.getElementById("next-button");
+            nextButton.disabled = false;
+        }
+
+        function disableNextButton() {
+            const nextButton = document.getElementById("next-button");
+            nextButton.disabled = true;
+        }
+
+        function displayResults() {
+            const resultsContainer = document.querySelector("#completion-screen .results");
+            resultsContainer.style.display = 'block';
+            document.getElementById("experiment-results-json").textContent = 
+                JSON.stringify(experimentResults, null, 2); // 格式化 JSON 輸出
+        }
+
+        function downloadResults() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(experimentResults, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            downloadAnchorNode.setAttribute("download", `experiment_results_${timestamp}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function resetExperiment() {
+            // 重置所有變數
+            experimentResults.demographics = {};
+            experimentResults.stimuli = [];
+            selectedStimuli = [];
+            currentStimulusIndex = 0;
+            playCountsPerStimulus = [];
+            hasPlayedStimulus = false;
+
+            // 清理表單內容
+            document.getElementById("age").value = "";
+            document.getElementById("gender").value = "";
+            document.getElementById("musical-background").value = "";
+            document.querySelectorAll('input[name="theory"]').forEach(radio => radio.checked = false);
+            document.getElementById("listen-frequency").value = "";
+            document.getElementById("live-frequency").value = "";
+            document.getElementById("listening-environment").value = "";
+            document.getElementById("participant-id").value = "";
+            
+            // 清除狀態消息
+            const statusMessage = document.getElementById("status-message");
+            if (statusMessage) { // 檢查元素是否存在
+                statusMessage.textContent = "";
+                statusMessage.className = "";
+                statusMessage.style.display = "none";
+            }
+            
+            // 清除結果區域的所有子元素
+            const resultsContainer = document.querySelector("#completion-screen .results");
+            if (resultsContainer) {
+                resultsContainer.style.display = 'none'; // 隱藏結果區域
+            }
+            document.getElementById("experiment-results-json").textContent = ""; // 清空 JSON 內容
+
+            // 重置播放按鈕狀態
+            const playButton = document.getElementById("play-button");
+            playButton.disabled = false;
+            playButton.textContent = "播放音樂";
+            updatePlayCountDisplay(0); // 重置播放次數顯示
+
+            // 清除視覺化
+            clearVisualization();
+
+            // 顯示 intro 頁面
+            showScreen('intro-screen');
+        }
+
+        // 打亂陣列 (Fisher-Yates algorithm)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 頁面載入時顯示介紹頁面
+        document.addEventListener('DOMContentLoaded', () => {
+            showScreen('intro-screen');
+            // 初始時禁用問題區塊
+            disableQuestionArea();
+        });
+
+    </script>
+</body>
+</html>

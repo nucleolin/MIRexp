@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音樂感知實驗</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px; /* 增加整體內容最大寬度 */
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+            padding-bottom: 50px; /* 為頁腳預留空間 */
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            max-width: 960px; /* 容器最大寬度，略小於 body */
+            padding: 30px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #3a3a3a;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .slider-container {
+            margin: 20px auto; /* 確保滑桿容器置中 */
+            width: 90%; /* 讓滑桿容器佔其父容器的 90% */
+        }
+        .slider {
+            width: 100%; /* 確保滑桿本身填滿其父容器 (.slider-container) */
+            margin: 10px 0;
+        }
+        .rating-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .rating-buttons label {
+            margin: 5px;
+            padding: 8px 15px; /* 增加左右內邊距 */
+            background-color: #f1f1f1;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .rating-buttons label:hover {
+            background-color: #e0e0e0;
+        }
+        .rating-buttons input[type="radio"] {
+            margin-right: 5px;
+        }
+        .rating-buttons input[type="radio"]:checked + label {
+            background-color: #d0e8ff;
+            border: 1px solid #4285f4;
+        }
+        .question {
+            margin: 30px auto; /* 確保問題區塊在新的寬度下依然置中 */
+            padding: 15px;
+            border-left: 4px solid #4285f4;
+            background-color: #f8f9fa;
+            width: 95%; /* 讓問題區塊佔其父容器寬度的 95%，這樣它會隨著整體寬度變寬 */
+        }
+        .hidden {
+            display: none;
+        }
+        progress {
+            width: 100%;
+            height: 20px;
+            margin: 20px 0;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #e8f0fe;
+            border-radius: 5px;
+        }
+        #visualization {
+            width: 100%;
+            height: 150px;
+            background-color: #f0f0f0;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+            border-radius: 5px;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            width: 100%;
+            max-width: none; /* 移除 max-width 限制，讓它跟著父容器變寬 */
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            resize: vertical;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: #4285f4;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #status-message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* 新增：強制先聽音樂的相關樣式 */
+        .question-section {
+            opacity: 0.5; /* 預設半透明，表示不可互動 */
+            pointer-events: none; /* 禁用滑鼠事件 */
+            transition: opacity 0.3s ease-in-out;
+        }
+        .question-section.active {
+            opacity: 1; /* 激活時完全不透明 */
+            pointer-events: auto; /* 啟用滑鼠事件 */
+        }
+
+        /* 頁腳樣式 */
+        .page-footer {
+            position: fixed; /* 讓元素固定在視窗中 */
+            bottom: 0;       /* 距離視窗底部 0 像素 */
+            left: 0;         /* 距離視窗左側 0 像素 */
+            width: 100%;     /* 讓它佔滿整個視窗寬度 */
+            background-color: #f8f8f8; /* 淺灰色背景，讓它從內容中區分開 */
+            padding: 10px 20px; /* 內邊距，增加文字與邊緣的空間 */
+            text-align: center; /* 讓文字置中 */
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.05); /* 增加一點陰影，看起來更立體 */
+            z-index: 1000;   /* 確保它在其他內容之上 */
+        }
+        .contact-info { /* 為聯絡資訊段落新增 class，並讓字體更小 */
+            font-size: 0.8em; /* 讓字體變小 */
+            margin: 0; /* 移除段落預設的 margin，避免多餘空間 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NTHU 2025 MIR 課程期末專案實驗</h1>
+
+        <div id="intro-screen">
+            <h2>歡迎您參與本次音樂感知實驗！</h2>
+            <p>在這個實驗中，您將聆聽數段音樂片段，並分享您對這些音樂的經驗感受反饋。</p>
+            <p>實驗總長度約 10-15 分鐘。為確保數據品質，請您盡可能在安靜的環境下專心聆聽並作答。</p>
+            <p>您的回應將完全匿名，僅供研究目的使用。感謝您的時間！</p>
+
+
+            <div class="form-group">
+                <label for="age">年齡: </label>
+                <select id="age">
+                    <option value="">年齡區間</option>
+                    <option value="18-24">18-24</option>
+                    <option value="25-34">25-34</option>
+                    <option value="35-44">35-44</option>
+                    <option value="45-54">45-44</option>
+                    <option value="55-64">55-64</option>
+                    <option value="65+">65+</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="gender">性別: </label>
+                <select id="gender">
+                    <option value="">請選擇</option>
+                    <option value="male">男性</option>
+                    <option value="female">女性</option>
+                    <option value="others">其他</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="musical-background">音樂背景: </label>
+                <select id="musical-background">
+                    <option value="">請選擇您的程度</option>
+                    <option value="none">無音樂訓練</option>
+                    <option value="beginner">初學者 (少於兩年)</option>
+                    <option value="intermediate">中等 (2-5 年)</option>
+                    <option value="advanced">進階 (5+ 年)</option>
+                    <option value="professional">職業音樂人</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="theory">請問您會樂理嗎? </label>
+                <select id="theory">
+                    <option value="">請選擇</option>
+                    <option value="none">完全不會</option>
+                    <option value="basic">基本</option>
+                    <option value="intermediate">中等</option>
+                    <option value="advanced">進階</option>
+                </select>
+            </div>
+             <div class="form-group">
+                <label for="listen-frequency">請問您聽音樂的頻率: </label>
+                <select id="listen-frequency">
+                    <option value="">請選擇頻率</option>
+                    <option value="mostthetime">隨時</option>
+                    <option value="everyday">每天</option>
+                    <option value="everyweek">每週</option>
+                    <option value="sometimes">偶爾</option>
+                </select>
+            </div>
+             <div class="form-group">
+                <label for="live-frequency">請問您參加現場演出的頻率: </label>
+                <select id="live-frequency">
+                    <option value="">請選擇</option>
+                    <option value="never">從不</option>
+                    <option value="weekly">平均每週一次</option>
+                    <option value="monthly">平均每月一次</option>
+                    <option value="halfyear">平均每半年一次</option>
+                    <option value="yearly">平均每年一次</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="listening-environment">當前聆聽設置: </label>
+                <select id="listening-environment">
+                    <option value="">請選擇</option>
+                    <option value="headphones-indoor">室內：耳機</option>
+                    <option value="headphones-outdoor">室外：耳機</option>
+                    <option value="speakers">電腦/筆電/平板直接播放</option>
+                    <option value="other">其他</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="participant-id">參與者ID (選填): </label>
+                <input type="text" id="participant-id" placeholder="可留空，系統會自動生成">
+            </div>
+
+            <button id="start-button" onclick="startExperiment()">開始實驗</button>
+        </div>
+
+        <div id="experiment-screen" class="hidden">
+            <div id="progress-container">
+                <p>進度: <span id="progress-text">1/15</span></p>
+                <progress id="progress-bar" value="1" max="15"></progress>
+            </div>
+
+            <div id="stimulus-container">
+                <h2>請您仔細聆聽這段音樂。您可以點擊「播放音樂」按鈕播放，若需重聽可再次點擊。</h2>
+                <button id="play-button" onclick="playCurrentStimulus()">播放音樂</button>
+                <div id="visualization"></div>
+
+                <div id="question-area" class="question-section">
+
+                    <div class="question">
+                        <h3>請問您有多喜歡這段音樂？</h3>
+                        <p>請拖動滑桿來評估您對這段音樂的喜好程度。</p>
+                        <div class="slider-container">
+                            <input type="range" min="1" max="7" value="4" class="slider" id="valence-slider">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>1（非常不喜歡）</span>
+                                <span>4（普通）</span>
+                                <span>7 （非常喜歡）</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question">
+                        <h3>對您而言，這段音樂的感知複雜度如何？</h3>
+                        <p>請評估這段音樂對您來說，聽起來是不是有點難理解。</p>
+
+                        <div class="slider-container">
+                            <input type="range" min="1" max="7" value="4" class="slider" id="arousal-slider">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>1 （非常簡單）</span>
+                                <span>4（普通）</span>
+                                <span>7（非常複雜）</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question">
+                        <h3>請問您對這類音樂有多熟悉？</h3>
+                        <p>請評估您過去接觸或聆聽這類音樂的頻率和程度。</p>
+                        <div class="slider-container">
+                            <input type="range" min="1" max="7" value="4" class="slider" id="familiarity-slider">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>1 (非常不熟悉，從未聽過)</span>
+                                <span>4 (好像有聽過/不太確定)</span>
+                                <span>7 (非常熟悉，經常聆聽)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question">
+                        <h3>你對這段音樂的「結構」理解或欣賞程度為何？</h3>
+                        <p>請評估您是否能理解或欣賞這段音樂的組織方式、發展脈絡，以及各個段落的安排等。</p>
+                        <div class="rating-buttons">
+                            <label><input type="radio" name="structure" value="1">1 非常容易理解/欣賞 (結構非常清晰)</label>
+                            <label><input type="radio" name="structure" value="2">2 容易理解/欣賞</label>
+                            <label><input type="radio" name="structure" value="3">3 普通 (不特別理解，也不覺得困難)</label>
+                            <label><input type="radio" name="structure" value="4">4 較難理解/欣賞</label>
+                            <label><input type="radio" name="structure" value="5">5 非常難理解/欣賞 (結構非常混亂或不明)</label>
+                        </div>
+                    </div>
+                    <div class="question">
+                        <h3>這段音樂對你情緒的影響有多強烈？</h3>
+                        <p>請評估這段音樂在多大程度上觸動或改變了您的情緒狀態。</p>
+                        <div class="rating-buttons">
+                            <label><input type="radio" name="emotion" value="1">1 完全無感 (沒有引起任何情緒波動)</label>
+                            <label><input type="radio" name="emotion" value="2">2 輕微影響</label>
+                            <label><input type="radio" name="emotion" value="3">3 中等影響 (略有感受，但不強烈)</label>
+                            <label><input type="radio" name="emotion" value="4">4 較強影響</label>
+                            <label><input type="radio" name="emotion" value="5">5 非常強烈 (引起非常明顯的情緒反應)</label>
+                        </div>
+                    </div>
+
+                    <div class="question">
+                        <h3>請問您有多投入這段音樂？</h3>
+                        <p>請評估您在聆聽這段音樂時，注意力集中的程度，以及是否完全沉浸其中。</p>
+                        <div class="slider-container">
+                            <input type="range" min="1" max="7" value="4" class="slider" id="engagement-slider">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>1 (非常抽離，容易分心)</span>
+                                <span>4 (普通)</span>
+                                <span>7 (非常投入，完全沉浸)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question">
+                         <h3>在聆聽這段音樂時，您最主要注意到哪個音樂成分？</h3>
+                         <p>請選擇最吸引您注意力的音樂元素。</p>
+                        <div class="rating-buttons">
+                            <label><input type="radio" name="component" value="melody">旋律 (Melody)</label>
+                            <label><input type="radio" name="component" value="rhythm">節奏 (Rhythm)</label>
+                            <label><input type="radio" name="component" value="harmony">和聲 (Harmony)</label>
+                            <label><input type="radio" name="component" value="timbre">音色 (Timbre)</label>
+                            <label><input type="radio" name="component" value="none">毫無概念</label>
+                            </div>
+                    </div>
+
+                    <div class="question">
+                        <h3>您認為這首音樂屬於哪種曲風？</h3>
+                        <p>請選擇您認為最符合這段音樂的曲風分類。若不確定，可選擇「無法辨識」。</p>
+                        <select id="genre-select">
+                            <option value="">請選擇曲風</option>
+                            <option value="classical">古典音樂 (Classical)</option>
+                             <option value="folk">民謠 (Folk)</option>
+                            <option value="citypop">城市流行 (City Pop)</option>
+                            <option value="pop_dance">流行/舞曲 (Pop/Dance)</option>
+                            <option value="pop">流行 (Pop)</option>
+                            <option value="techno">科技舞曲 (Techno)</option>
+                            <option value="math_rock">數字搖滾 (Math Rock)</option>
+                            <option value="jazz">爵士樂 (Jazz)</option>
+                            <option value="scandipop_tropical">北歐流行/熱帶風格 (Scandipop/Tropical)</option>
+                            <option value="other">其他</option>
+                            <option value="not_sure">無法辨識</option>
+                        </select>
+                        <input type="text" id="other_genre_text" placeholder="若選其他，請輸入曲風" style="display: none; margin-top: 5px;">
+                    </div>
+                </div> <button id="next-button" onclick="nextStimulus()">下一題</button>
+            </div>
+        </div>
+
+        <div id="completion-screen" class="hidden">
+            <h2>感謝您的參與！</h2>
+            <p>您的回應已被記錄。</p>
+            <div id="status-message"></div>
+            <button onclick="restartExperiment()">重新開始</button>
+        </div>
+
+        <div id="loading-screen" class="hidden">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>正在載入音樂檔案，請稍候...</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="page-footer">
+         <p class="contact-info">有任何建議與問題歡迎聯繫: example@nthu.edu.tw</p>
+    </footer>
+
+    <script>
+        // Global variables
+        let currentStimulusIndex = 0;
+        let experimentResults = {
+            participantId: '',
+            demographicInfo: {},
+            stimuli: [],
+            experimentSummary: {}
+        };
+        let player; // 音頻播放器
+        let visualElements = [];
+
+        // 添加時間記錄變量
+        let experimentStartTime; // 整個實驗的開始時間
+        let experimentEndTime; // 整個實驗的結束時間
+        let questionStartTimes = []; // 每個問題的開始時間
+        let currentStimulusStartTime; // 當前問題的開始時間
+        let hasPlayedCurrentStimulusFully = false; // 標記是否已播放完畢當前刺激
+        let playCountsPerStimulus = []; // 每個刺激的播放次數
+
+        // 音樂檔案資訊 - 包含所有 50 個片段
+        const musicFiles = [
+            // Classical (5 songs * 2 segments = 10 segments)
+            { file: "music/classical/classical_song1_segment_start.wav", genre: "classical", song_id: "classical_s1", segment_type: "start" },
+            { file: "music/classical/classical_song1_segment_mid.wav", genre: "classical", song_id: "classical_s1", segment_type: "mid" },
+            { file: "music/classical/classical_song2_segment_start.wav", genre: "classical", song_id: "classical_s2", segment_type: "start" },
+            { file: "music/classical/classical_song2_segment_mid.wav", genre: "classical", song_id: "classical_s2", segment_type: "mid" },
+            { file: "music/classical/classical_song3_segment_start.wav", genre: "classical", song_id: "classical_s3", segment_type: "start" },
+            { file: "music/classical/classical_song3_segment_mid.wav", genre: "classical", song_id: "classical_s3", segment_type: "mid" },
+            { file: "music/classical/classical_song4_segment_start.wav", genre: "classical", song_id: "classical_s4", segment_type: "start" },
+            { file: "music/classical/classical_song4_segment_mid.wav", genre: "classical", song_id: "classical_s4", segment_type: "mid" },
+            { file: "music/classical/classical_song5_segment_start.wav", genre: "classical", song_id: "classical_s5", segment_type: "start" },
+            { file: "music/classical/classical_song5_segment_mid.wav", genre: "classical", song_id: "classical_s5", segment_type: "mid" },
+
+            // Math Rock (5 songs * 2 segments = 10 segments)
+            { file: "music/math_rock/math_rock_song1_segment_start.wav", genre: "math_rock", song_id: "math_rock_s1", segment_type: "start" },
+            { file: "music/math_rock/math_rock_song1_segment_mid.wav", genre: "math_rock", song_id: "math_rock_s1", segment_type: "mid" },
+            { file: "music/math_rock/math_rock_song2_segment_start.wav", genre: "math_rock", song_id: "math_rock_s2", segment_type: "start" },
+            { file: "music/math_rock/math_rock_song2_segment_mid.wav", genre: "math_rock", song_id: "math_rock_s2", segment_type: "mid" },
+            { file: "music/math_rock/math_rock_song3_segment_start.wav", genre: "math_rock", song_id: "math_rock_s3", segment_type: "start" },
+            { file: "music/math_rock/math_rock_song3_segment_mid.wav", genre: "math_rock", song_id: "math_rock_s3", segment_type: "mid" },
+            { file: "music/math_rock/math_rock_song4_segment_start.wav", genre: "math_rock", song_id: "math_rock_s4", segment_type: "start" },
+            { file: "music/math_rock/math_rock_song4_segment_mid.wav", genre: "math_rock", song_id: "math_rock_s4", segment_type: "mid" },
+            { file: "music/math_rock/math_rock_song5_segment_start.wav", genre: "math_rock", song_id: "math_rock_s5", segment_type: "start" },
+            { file: "music/math_rock/math_rock_song5_segment_mid.wav", genre: "math_rock", song_id: "math_rock_s5", segment_type: "mid" },
+
+            // Pop Dance (10 segments)
+            { file: "music/pop_dance/pop_dance_song1_segment_start.wav", genre: "pop_dance", song_id: "pop_dance_s1", segment_type: "start" },
+            { file: "music/pop_dance/pop_dance_song1_segment_mid.wav", genre: "pop_dance", song_id: "pop_dance_s1", segment_type: "mid" },
+            { file: "music/pop_dance/pop_dance_song2_segment_start.wav", genre: "pop_dance", song_id: "pop_dance_s2", segment_type: "start" },
+            { file: "music/pop_dance/pop_dance_song2_segment_mid.wav", genre: "pop_dance", song_id: "pop_dance_s2", segment_type: "mid" },
+            { file: "music/pop_dance/pop_dance_song3_segment_start.wav", genre: "pop_dance", song_id: "pop_dance_s3", segment_type: "start" },
+            { file: "music/pop_dance/pop_dance_song3_segment_mid.wav", "genre": "pop_dance", song_id: "pop_dance_s3", segment_type: "mid" },
+            { file: "music/pop_dance/pop_dance_song4_segment_start.wav", genre: "pop_dance", song_id: "pop_dance_s4", segment_type: "start" },
+            { file: "music/pop_dance/pop_dance_song4_segment_mid.wav", genre: "pop_dance", song_id: "pop_dance_s4", segment_type: "mid" },
+            { file: "music/pop_dance/pop_dance_song5_segment_start.wav", genre: "pop_dance", song_id: "pop_dance_s5", segment_type: "start" },
+            { file: "music/pop_dance/pop_dance_song5_segment_mid.wav", genre: "pop_dance", song_id: "pop_dance_s5", segment_type: "mid" },
+
+            // Jazz (10 segments)
+            { file: "music/jazz/jazz_song1_segment_start.wav", genre: "jazz", song_id: "jazz_s1", segment_type: "start" },
+            { file: "music/jazz/jazz_song1_segment_mid.wav", genre: "jazz", song_id: "jazz_s1", segment_type: "mid" },
+            { file: "music/jazz/jazz_song2_segment_start.wav", genre: "jazz", song_id: "jazz_s2", segment_type: "start" },
+            { file: "music/jazz/jazz_song2_segment_mid.wav", genre: "jazz", song_id: "jazz_s2", segment_type: "mid" },
+            { file: "music/jazz/jazz_song3_segment_start.wav", genre: "jazz", song_id: "jazz_s3", segment_type: "start" },
+            { file: "music/jazz/jazz_song3_segment_mid.wav", genre: "jazz", song_id: "jazz_s3", segment_type: "mid" },
+            { file: "music/jazz/jazz_song4_segment_start.wav", genre: "jazz", song_id: "jazz_s4", segment_type: "start" },
+            { file: "music/jazz/jazz_song4_segment_mid.wav", genre: "jazz", song_id: "jazz_s4", segment_type: "mid" },
+            { file: "music/jazz/jazz_song5_segment_start.wav", genre: "jazz", song_id: "jazz_s5", segment_type: "start" },
+            { file: "music/jazz/jazz_song5_segment_mid.wav", genre: "jazz", song_id: "jazz_s5", segment_type: "mid" },
+
+            // Scandipop/Tropical (10 segments)
+            { file: "music/scandipop_tropical/scandipop_tropical_song1_segment_start.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s1", segment_type: "start" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song1_segment_mid.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s1", segment_type: "mid" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song2_segment_start.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s2", segment_type: "start" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song2_segment_mid.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s2", segment_type: "mid" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song3_segment_start.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s3", segment_type: "start" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song3_segment_mid.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s3", segment_type: "mid" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song4_segment_start.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s4", segment_type: "start" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song4_segment_mid.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s4", segment_type: "mid" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song5_segment_start.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s5", segment_type: "start" },
+            { file: "music/scandipop_tropical/scandipop_tropical_song5_segment_mid.wav", genre: "scandipop_tropical", song_id: "scandipop_tropical_s5", segment_type: "mid" },
+        ];
+
+        const totalStimuliCountForParticipant = 3; // 每個受試者聽的音樂總數
+        const segmentsPerGenre = 1; // 每個曲風選擇的片段數量 (5 genres * 3 segments = 15 total)
+        const allGenres = ["classical", "math_rock", "pop_dance", "jazz", "scandipop_tropical"]; // 列出所有曲風
+
+        // *** 新增：用於測試的音樂選取函數 (只選 3 首歌) ***
+        function selectMusicForTest() {
+            let selected = [];
+            let tempMusicFiles = [...musicFiles]; // 創建一個臨時副本
+
+            // 打亂所有片段
+            shuffleArray(tempMusicFiles);
+
+            // 從打亂後的列表中選取前 totalStimuliCountForParticipant 個片段
+            // 這裡會從所有 50 個片段中隨機抽取 3 個，不保證曲風平衡或 start/mid 平衡
+            selected = tempMusicFiles.slice(0, totalStimuliCountForParticipant);
+
+            // 由於已經從所有片段中打亂選取了，這裡不需要再次整體打亂了
+            // 如果希望確保選取的這3個片段的播放順序也是隨機的，可以在上面 slice 後再 shuffle 一次
+            // shuffleArray(selected); // 如果需要，可以加上這行
+
+            return selected;
+        }
+
+        // 選出的刺激
+        let selectedStimuli = [];
+
+        // 生成唯一的參與者ID
+        function generateParticipantId() {
+            const timestamp = new Date().getTime();
+            const randomPart = Math.floor(Math.random() * 10000);
+            return `P${timestamp}-${randomPart}`;
+        }
+
+        // 修改初始化實驗函數以選取音樂
+        function initExperiment() {
+            // 初始化音頻播放器
+            player = new Tone.Player().toDestination();
+
+            // 隨機選取15首音樂，確保每種風格至少有3首
+            selectedStimuli = selectMusic();
+
+            console.log("Selected stimuli for this participant:", selectedStimuli);
+        }
+
+        // 從每個曲風中選取音樂，確保平衡 'start' 和 'mid' 片段
+        function selectMusic() {
+            let selected = [];
+            let tempMusicFiles = [...musicFiles]; // 創建一個臨時副本
+
+            // 按曲風分組
+            const genreGroups = {};
+            allGenres.forEach(genre => {
+                genreGroups[genre] = tempMusicFiles.filter(file => file.genre === genre);
+            });
+
+            // 從每個曲風中選取指定數量的片段，同時平衡 'start' 和 'mid'
+            allGenres.forEach(genre => {
+                const currentGenreSegments = genreGroups[genre];
+                const startSegments = currentGenreSegments.filter(s => s.segment_type === 'start');
+                const midSegments = currentGenreSegments.filter(s => s.segment_type === 'mid');
+
+                shuffleArray(startSegments); // 打亂 'start' 片段
+                shuffleArray(midSegments);   // 打亂 'mid' 片段
+
+                let genreSelection = [];
+                let numStartSelected = 0;
+                let numMidSelected = 0;
+
+                // 目標：在 segmentsPerGenre (3個) 中，盡量讓 start 和 mid 平衡
+                // 這裡採用一個簡單的策略：輪流選取，直到達到 segmentsPerGenre
+                for (let i = 0; i < segmentsPerGenre; i++) {
+                    if (i % 2 === 0) { // 優先選取 start 片段
+                        if (startSegments.length > 0) {
+                            genreSelection.push(startSegments.shift()); // shift() 會移除並返回第一個元素
+                            numStartSelected++;
+                        } else if (midSegments.length > 0) { // 如果沒有 start 了，則選 mid
+                            genreSelection.push(midSegments.shift());
+                            numMidSelected++;
+                        }
+                    } else { // 優先選取 mid 片段
+                        if (midSegments.length > 0) {
+                            genreSelection.push(midSegments.shift());
+                            numMidSelected++;
+                        } else if (startSegments.length > 0) { // 如果沒有 mid 了，則選 start
+                            genreSelection.push(startSegments.shift());
+                            numMidSelected++;
+                        }
+                    }
+                    // 如果數量已滿，跳出
+                    if (genreSelection.length === segmentsPerGenre) break;
+                }
+
+                // 如果在輪流選取後，數量不足 segmentsPerGenre (例如某種類型不夠了)
+                // 則從剩下的片段中補足
+                while (genreSelection.length < segmentsPerGenre) {
+                    if (startSegments.length > 0) {
+                        genreSelection.push(startSegments.shift());
+                        numStartSelected++;
+                    } else if (midSegments.length > 0) {
+                        genreSelection.push(midSegments.shift());
+                        numMidSelected++;
+                    } else {
+                        // 如果兩種片段都沒了，表示原始數據有問題或segmentsPerGenre設定過高
+                        console.warn(`Warning: Not enough segments for genre ${genre}. Selected ${genreSelection.length} instead of ${segmentsPerGenre}.`);
+                        break;
+                    }
+                }
+                selected = selected.concat(genreSelection);
+            });
+
+            // 最後再次打亂所有選定的歌曲，確保不同曲風在播放順序上隨機分布
+            shuffleArray(selected);
+
+            return selected;
+        }
+
+        // 修改開始實驗函數來記錄開始時間
+        function startExperiment() {
+            // 檢查是否填寫了人口統計信息
+            const age = document.getElementById("age").value;
+            const gender = document.getElementById("gender").value;
+            const musicalBackground = document.getElementById("musical-background").value;
+            const theory = document.getElementById("theory").value;
+            const listenFrequency = document.getElementById("listen-frequency").value;
+            const liveFrequency = document.getElementById("live-frequency").value;
+            const listeningEnvironment = document.getElementById("listening-environment").value;
+
+            if (!age || !gender || !musicalBackground || !theory || !listenFrequency || !liveFrequency || !listeningEnvironment) {
+                alert("開始實驗前請填寫所有人口統計資訊。");
+                return;
+            }
+
+            // 顯示載入畫面
+            document.getElementById("intro-screen").classList.add("hidden");
+            document.getElementById("loading-screen").classList.remove("hidden");
+
+            // 記錄實驗開始時間
+            experimentStartTime = new Date();
+
+            // 初始化實驗（選擇音樂）
+            initExperiment();
+
+            // 獲取或生成參與者ID
+            let participantId = document.getElementById("participant-id").value;
+            if (!participantId) {
+                participantId = generateParticipantId();
+            }
+
+            // 儲存參與者ID
+            experimentResults.participantId = participantId;
+
+            // 儲存人口統計資訊
+            experimentResults.demographicInfo = {
+                age: age,
+                gender: gender,
+                musicalBackground: musicalBackground,
+                theory: theory,
+                listenFrequency: listenFrequency,
+                liveFrequency: liveFrequency,
+                listeningEnvironment: listeningEnvironment,
+                experimentStartTime: experimentStartTime.toISOString()
+            };
+
+            // 初始化刺激結果陣列
+            experimentResults.stimuli = [];
+
+            // 初始化播放次數計數陣列
+            for (let i = 0; i < selectedStimuli.length; i++) { // 使用 selectedStimuli.length
+                playCountsPerStimulus[i] = 0;
+            }
+
+            // 模擬音樂文件的預加載
+            setTimeout(() => {
+                // 隱藏載入畫面，顯示實驗畫面
+                document.getElementById("loading-screen").classList.add("hidden");
+                document.getElementById("experiment-screen").classList.remove("hidden");
+
+                // 更新進度
+                updateProgress();
+
+                // 記錄第一個問題的開始時間
+                startNewQuestionTimer();
+
+                // 初始時禁用問題區塊，直到用戶聽完音樂
+                disableQuestionArea();
+            }, 1500); // 模擬載入延遲
+        }
+
+        // 開始新問題計時器
+        function startNewQuestionTimer() {
+            currentStimulusStartTime = new Date();
+            questionStartTimes[currentStimulusIndex] = currentStimulusStartTime;
+            hasPlayedCurrentStimulusFully = false; // 重置播放標記
+            // 初始化當前刺激在結果中的結構
+            if (!experimentResults.stimuli[currentStimulusIndex]) {
+                experimentResults.stimuli[currentStimulusIndex] = {
+                    playEvents: [], // 用於存儲播放事件
+                };
+            }
+
+            // 禁用問題區塊
+            disableQuestionArea();
+
+            // 重置滑桿到中間值並清除單選按鈕
+            resetQuestionInputs();
+        }
+
+        // 禁用問題區塊
+        function disableQuestionArea() {
+            const questionArea = document.getElementById("question-area");
+            questionArea.classList.remove("active"); // 移除激活狀態
+        }
+
+        // 啟用問題區塊
+        function enableQuestionArea() {
+            const questionArea = document.getElementById("question-area");
+            questionArea.classList.add("active"); // 添加激活狀態
+        }
+
+        // 修改播放函數來播放音樂檔案
+        function playCurrentStimulus() {
+            // 獲取當前刺激
+            const stimulus = selectedStimuli[currentStimulusIndex];
+
+            // 增加播放計數
+            playCountsPerStimulus[currentStimulusIndex]++;
+            const currentPlayCount = playCountsPerStimulus[currentStimulusIndex];
+
+            // 記錄播放事件開始時間
+            const playStartTime = new Date();
+
+            // 開始音頻上下文（如果已暫停）
+            if (Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+
+            // 播放期間禁用播放按鈕
+            const playButton = document.getElementById("play-button");
+            playButton.disabled = true;
+            playButton.textContent = "播放中...";
+
+            // 在播放按鈕旁邊顯示播放計數
+            updatePlayCountDisplay(currentPlayCount);
+
+            // 加載和播放音樂檔案
+            player.load(stimulus.file).then(() => {
+                // 音頻已加載完成後開始播放
+                const duration = player.buffer.duration;
+                player.start();
+
+                // 標記刺激正在播放
+                let isPlaying = true;
+
+                // 播放結束後重新啟用播放按鈕
+                const playTimeout = setTimeout(() => {
+                    isPlaying = false;
+                    playButton.disabled = false;
+                    playButton.textContent = "播放音樂";
+
+                    // 標記刺激已被完整播放
+                    hasPlayedCurrentStimulusFully = true;
+
+                    // 啟用問題區塊，允許用戶作答
+                    enableQuestionArea();
+
+                    // 記錄播放結束時間
+                    const playEndTime = new Date();
+
+                    // 在實驗結果中記錄播放事件
+                    experimentResults.stimuli[currentStimulusIndex].playEvents.push({
+                        playCount: currentPlayCount,
+                        playStartTime: playStartTime.toISOString(),
+                        playEndTime: playEndTime.toISOString(),
+                        playDurationMs: playEndTime - playStartTime,
+                        fileInfo: {
+                            filename: stimulus.file,
+                            genre: stimulus.genre,
+                            song_id: stimulus.song_id,
+                            segment_type: stimulus.segment_type
+                        }
+                    });
+
+                }, duration * 1000 + 100); // 加一點點額外時間確保播放完成
+
+                // 創建音頻可視化 - 簡單的進度條
+                createAudioProgress(duration);
+
+                // 如果用戶在播放結束前點擊了播放按鈕再次播放，停止並重置
+                player.on("stop", () => {
+                     if (isPlaying) { // 如果是手動停止 (未播放完畢)
+                        clearTimeout(playTimeout); // 清除定時器
+                        isPlaying = false;
+                        // 不更新 hasPlayedCurrentStimulusFully，強制下次重新播放
+                        playButton.disabled = false;
+                        playButton.textContent = "播放音樂";
+                        clearVisualization(); // 清除進度條等視覺化
+                     }
+                });
+
+
+            }).catch(e => {
+                console.error("Error loading audio:", e);
+                alert("加載音樂檔案時出錯，請稍後重試。");
+                playButton.disabled = false;
+                playButton.textContent = "播放音樂";
+                clearVisualization(); // 清除視覺化
+            });
+        }
+
+        // 創建音頻進度條可視化
+        function createAudioProgress(duration) {
+            // 清除舊的可視化
+            clearVisualization();
+
+            const viz = document.getElementById("visualization");
+
+            // 創建進度條
+            const progressBar = document.createElement("div");
+            progressBar.style.width = "0%";
+            progressBar.style.height = "10px";
+            progressBar.style.backgroundColor = "#4285f4";
+            progressBar.style.position = "absolute";
+            progressBar.style.bottom = "0";
+            progressBar.style.left = "0";
+            progressBar.style.transition = `width ${duration}s linear`;
+            viz.appendChild(progressBar);
+
+            // 等待下一幀再開始動畫（避免過渡問題）
+            requestAnimationFrame(() => {
+                progressBar.style.width = "100%";
+            });
+
+            // 創建時間指示器
+            const timeIndicator = document.createElement("div");
+            timeIndicator.style.position = "absolute";
+            timeIndicator.style.top = "50%";
+            timeIndicator.style.left = "50%";
+            timeIndicator.style.transform = "translate(-50%, -50%)";
+            timeIndicator.style.fontSize = "20px";
+            timeIndicator.style.fontWeight = "bold";
+            timeIndicator.textContent = "0:00";
+            viz.appendChild(timeIndicator);
+
+            // 更新時間顯示
+            let elapsedTime = 0;
+            const intervalId = setInterval(() => {
+                elapsedTime += 1;
+                if (elapsedTime <= duration) {
+                    const minutes = Math.floor(elapsedTime / 60);
+                    const seconds = Math.floor(elapsedTime % 60);
+                    timeIndicator.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                } else {
+                    clearInterval(intervalId);
+                }
+            }, 1000);
+
+            // 創建波形顯示（簡化版）
+            for (let i = 0; i < 50; i++) {
+                const bar = document.createElement("div");
+                const height = Math.random() * 80 + 10; // 隨機高度，10-90px
+                bar.style.width = "2%";
+                bar.style.height = `${height}px`;
+                bar.style.backgroundColor = "#87CEFA";
+                bar.style.position = "absolute";
+                bar.style.bottom = "15px";
+                bar.style.left = `${i * 2}%`;
+                bar.style.borderRadius = "3px";
+                bar.style.opacity = "0.7";
+                viz.appendChild(bar);
+
+                // 簡單的動畫效果
+                setInterval(() => {
+                    const newHeight = Math.random() * 80 + 10;
+                    bar.style.height = `${newHeight}px`;
+                }, 300);
+            }
+        }
+
+        // 更新播放計數顯示
+        function updatePlayCountDisplay(count) {
+            // 檢查是否已存在播放計數顯示元素
+            let countDisplay = document.getElementById("play-count-display");
+
+            // 如果不存在，創建一個
+            if (!countDisplay) {
+                countDisplay = document.createElement("div");
+                countDisplay.id = "play-count-display";
+                countDisplay.style.marginLeft = "10px";
+                countDisplay.style.display = "inline-block";
+                countDisplay.style.fontSize = "14px";
+                countDisplay.style.color = "#666";
+
+                // 插入到播放按鈕之後
+                const playButton = document.getElementById("play-button");
+                playButton.parentNode.insertBefore(countDisplay, playButton.nextSibling);
+            }
+
+            // 更新計數顯示
+            countDisplay.textContent = `播放次數: ${count}`;
+        }
+
+        // 清除可視化
+        function clearVisualization() {
+            const viz = document.getElementById("visualization");
+            while (viz.firstChild) {
+                viz.removeChild(viz.firstChild);
+            }
+            visualElements = [];
+        }
+
+        // 重置問題輸入（滑桿和單選按鈕）
+        function resetQuestionInputs() {
+            document.getElementById("valence-slider").value = 4;
+            document.getElementById("arousal-slider").value = 4;
+            document.getElementById("familiarity-slider").value = 4;
+            document.getElementById("engagement-slider").value = 4;
+            document.getElementById("genre-select").value = "";
+
+            // 重置單選按鈕
+            const allRadios = document.querySelectorAll('#question-area input[type="radio"]'); // 確保只重置問題區塊內的按鈕
+            allRadios.forEach(radio => {
+                radio.checked = false;
+                // 如果是「其他」選項的文本框，也要清空並隱藏
+                if (radio.value === 'other') {
+                    const otherTextInput = radio.nextElementSibling; // 獲取緊鄰的文本框
+                    if (otherTextInput && otherTextInput.tagName === 'INPUT' && otherTextInput.type === 'text') {
+                         otherTextInput.value = '';
+                         otherTextInput.style.display = 'none';
+                    }
+                }
+            });
+
+            // 隱藏「其他」曲風輸入框 (如果未選中其他，確保隱藏)
+            document.getElementById('other_genre_text').style.display = 'none';
+            document.getElementById('other_genre_text').value = '';
+            handleGenreSelectChange(); // 確保重新檢查狀態
+        }
+
+        // 處理曲風選擇變化
+        function handleGenreSelectChange() {
+            const genreSelect = document.getElementById('genre-select');
+            const otherGenreText = document.getElementById('other_genre_text');
+            if (genreSelect.value === 'other') {
+                otherGenreText.style.display = 'block';
+            } else {
+                otherGenreText.style.display = 'none';
+                otherGenreText.value = ''; // 清空內容
+            }
+        }
+
+        // 修改 nextStimulus 函數
+        function nextStimulus() {
+            // 如果刺激尚未完整播放，阻止繼續
+            if (!hasPlayedCurrentStimulusFully) {
+                alert("請先聆聽完整音樂片段才能繼續作答。");
+                return;
+            }
+
+            // 停止當前播放的音樂（如果有）
+            if (player && player.state === "started") {
+                player.stop();
+            }
+
+            // 記錄結束時間
+            const questionEndTime = new Date();
+
+            // 計算此問題的作答時間（毫秒）
+            const questionDuration = questionEndTime - currentStimulusStartTime;
+
+            // 從滑桿獲取評分
+            const likeRating = parseInt(document.getElementById("valence-slider").value);
+            const complexRating = parseInt(document.getElementById("arousal-slider").value);
+            const familiarRating = parseInt(document.getElementById("familiarity-slider").value);
+
+            // 獲取選中的結構理解/欣賞評分
+            let structureRating = "";
+            const structureRadios = document.getElementsByName("structure");
+            for (let radio of structureRadios) {
+                if (radio.checked) {
+                    structureRating = radio.value;
+                    break;
+                }
+            }
+
+            // 獲取情緒影響評分
+            let emotionRating = "";
+            const emotionRadios = document.getElementsByName("emotion");
+            for (let radio of emotionRadios) {
+                if (radio.checked) {
+                    emotionRating = radio.value;
+                    break;
+                }
+            }
+
+            // 獲取投入度評分
+            const engagementRating = parseInt(document.getElementById("engagement-slider").value);
+
+            // 獲取選中的音樂成分
+            let selectedComponent = "";
+            const componentRadios = document.getElementsByName("component");
+            const otherComponentText = document.getElementById('other_component_text'); // 獲取「其他」輸入框
+            for (let radio of componentRadios) {
+                if (radio.checked) {
+                    selectedComponent = radio.value;
+                    if (selectedComponent === 'other') {
+                        selectedComponent = otherComponentText.value.trim() || '其他 (未填)'; // 如果選了其他但沒填，記錄為「其他 (未填)」
+                    }
+                    break;
+                }
+            }
+
+
+            // 獲取選擇的曲風
+            let genreSelection = document.getElementById("genre-select").value;
+            if (genreSelection === 'other') { // 如果選了其他，則取文本框內容
+                genreSelection = document.getElementById('other_genre_text').value.trim() || '其他 (未填)'; // 如果選了其他但沒填，記錄為「其他 (未填)」
+            }
+
+            // 檢查是否所有必填項都已填寫
+            if (!structureRating || !emotionRating || !selectedComponent || !genreSelection ||
+                (selectedComponent.startsWith('其他') && otherComponentText.style.display === 'inline-block' && otherComponentText.value.trim() === '') ||
+                (genreSelection.startsWith('其他') && document.getElementById('other_genre_text').style.display === 'block' && document.getElementById('other_genre_text').value.trim() === '')
+            ) {
+                alert("請填寫所有問題再繼續。如果選擇了「其他」請務必填寫詳細資訊。");
+                return;
+            }
+
+            // 儲存結果
+            const currentStimulus = selectedStimuli[currentStimulusIndex];
+            experimentResults.stimuli[currentStimulusIndex] = {
+                ...experimentResults.stimuli[currentStimulusIndex], // 保留現有數據（如播放事件）
+                stimulusIndex: currentStimulusIndex,
+                fileInfo: {
+                    filename: currentStimulus.file,
+                    genre: currentStimulus.genre,
+                    song_id: currentStimulus.song_id, // 記錄歌曲 ID
+                    segment_type: currentStimulus.segment_type // 記錄片段類型
+                },
+                likeRating: likeRating,
+                complexRating: complexRating,
+                familiarRating: familiarRating,
+                structureRating: structureRating,
+                emotionRating: emotionRating,
+                engagementRating: engagementRating,
+                selectedComponent: selectedComponent,
+                genreSelection: genreSelection,
+                questionStartTime: currentStimulusStartTime.toISOString(), // 問題開始時間
+                questionEndTime: questionEndTime.toISOString(), // 問題結束時間
+                questionDurationMs: questionDuration, // 問題持續時間（毫秒）
+                totalPlayCount: playCountsPerStimulus[currentStimulusIndex] // 總播放次數
+            };
+
+            // 增加刺激索引
+            currentStimulusIndex++;
+
+            // 清除可視化
+            clearVisualization();
+
+            // 清除播放計數顯示
+            const countDisplay = document.getElementById("play-count-display");
+            if (countDisplay) {
+                countDisplay.textContent = "";
+            }
+
+            // 更新進度
+            updateProgress();
+
+            // 檢查實驗是否完成
+            if (currentStimulusIndex >= selectedStimuli.length) {
+                completeExperiment();
+            } else {
+                // 開始下一個問題的計時
+                startNewQuestionTimer();
+                // 滾動到頁面頂部（或播放按鈕處）
+                document.getElementById('stimulus-container').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // 修改實驗完成功能以記錄結束時間和播放統計
+        function completeExperiment() {
+            // 記錄實驗結束時間
+            experimentEndTime = new Date();
+
+            // 計算總實驗時間（毫秒）
+            const totalExperimentDuration = experimentEndTime - experimentStartTime;
+
+            // 計算播放統計
+            let totalPlays = 0;
+            let maxPlays = 0;
+            let minPlays = Infinity;
+
+            for (let i = 0; i < selectedStimuli.length; i++) {
+                const playCount = playCountsPerStimulus[i];
+                totalPlays += playCount;
+                maxPlays = Math.max(maxPlays, playCount);
+                minPlays = Math.min(minPlays, playCount);
+            }
+            if (selectedStimuli.length === 0) { // 防止除以零
+                minPlays = 0;
+            }
+
+            const avgPlaysPerStimulus = (totalPlays / selectedStimuli.length).toFixed(2);
+
+            // 記錄實驗時間和播放數據
+            experimentResults.experimentSummary = {
+                experimentStartTime: experimentStartTime.toISOString(),
+                experimentEndTime: experimentEndTime.toISOString(),
+                totalExperimentDurationMs: totalExperimentDuration,
+                totalExperimentDurationMin: (totalExperimentDuration / 60000).toFixed(2),
+                playStatistics: {
+                    totalPlays: totalPlays,
+                    averagePlaysPerStimulus: avgPlaysPerStimulus,
+                    maxPlaysForAnyStimulus: maxPlays,
+                    minPlaysForAnyStimulus: minPlays
+                }
+            };
+
+            // 計算平均問題時間
+            let totalQuestionTime = 0;
+            experimentResults.stimuli.forEach(stimulus => {
+                if (stimulus.questionDurationMs) { // 確保有這個屬性
+                    totalQuestionTime += stimulus.questionDurationMs;
+                }
+            });
+
+            experimentResults.experimentSummary.averageQuestionTimeMs = Math.round(totalQuestionTime / selectedStimuli.length);
+            experimentResults.experimentSummary.averageQuestionTimeSec = (experimentResults.experimentSummary.averageQuestionTimeMs / 1000).toFixed(2);
+
+            // 隱藏實驗畫面，顯示完成畫面
+            document.getElementById("experiment-screen").classList.add("hidden");
+            document.getElementById("completion-screen").classList.remove("hidden");
+
+            // 提交數據到 Formspree
+            submitDataToFormspree(experimentResults);
+
+            // 添加下載按鈕作為備份
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '下載實驗數據 (JSON備份)';
+            downloadBtn.style.marginTop = '20px';
+            downloadBtn.style.backgroundColor = '#4CAF50';
+            downloadBtn.onclick = function() {
+                const dataStr = JSON.stringify(experimentResults, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `music_experiment_${experimentResults.participantId}_${new Date().toISOString().replace(/:/g, '-')}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // 將下載按鈕添加到完成畫面
+            document.getElementById("completion-screen").appendChild(downloadBtn);
+
+        }
+
+        // 提交數據到 Formspree
+        function submitDataToFormspree(data) {
+            const statusMessage = document.getElementById("status-message");
+            statusMessage.textContent = "正在提交數據到伺服器...";
+            statusMessage.className = "";
+            statusMessage.style.display = "block";
+
+            console.log("開始提交數據到 Formspree...");
+
+            // 準備提交的數據 - Formspree 有 4MB 的大小限制
+            // 我們會分割數據以確保它能正常提交
+            const formData = {
+                participantId: data.participantId,
+                age: data.demographicInfo.age,
+                gender: data.demographicInfo.gender,
+                musicalBackground: data.demographicInfo.musicalBackground,
+                theory: data.demographicInfo.theory,
+                listenFrequency: data.demographicInfo.listenFrequency,
+                liveFrequency: data.demographicInfo.liveFrequency,
+                listeningEnvironment: data.demographicInfo.listeningEnvironment,
+                experimentDuration: data.experimentSummary.totalExperimentDurationMin + "分鐘",
+                avgQuestionTime: data.experimentSummary.averageQuestionTimeSec + "秒",
+                totalPlays: data.experimentSummary.playStatistics.totalPlays,
+                avgPlaysPerStimulus: data.experimentSummary.playStatistics.averagePlaysPerStimulus,
+
+                // 轉換為JSON字符串以便於查看
+                demographicInfo: JSON.stringify(data.demographicInfo),
+                experimentSummary: JSON.stringify(data.experimentSummary)
+            };
+
+            // 針對每個刺激添加簡明摘要
+            data.stimuli.forEach((stimulus, index) => {
+                formData[`stimulus_${index+1}`] = JSON.stringify({
+                    file: stimulus.fileInfo.filename, // 添加完整檔案路徑
+                    genre: stimulus.fileInfo.genre,
+                    song_id: stimulus.fileInfo.song_id, // 新增 song_id
+                    segment_type: stimulus.fileInfo.segment_type, // 新增 segment_type
+                    likeRating: stimulus.likeRating,
+                    complexRating: stimulus.complexRating,
+                    familiarRating: stimulus.familiarRating,
+                    structureRating: stimulus.structureRating,
+                    emotionRating: stimulus.emotionRating,
+                    engagementRating: stimulus.engagementRating,
+                    selectedComponent: stimulus.selectedComponent,
+                    genreSelection: stimulus.genreSelection,
+                    totalPlayCount: stimulus.totalPlayCount
+                });
+            });
+
+            const FORMSPREE_URL = 'https://formspree.io/f/xyzwvbgg'; // 請將此替換為您的 Formspree 端點
+
+
+            // 發送到 Formspree
+            fetch(FORMSPREE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    // 嘗試從響應中讀取錯誤信息
+                    return response.json().then(errorData => {
+                        throw new Error(`提交數據時出現網絡錯誤: ${JSON.stringify(errorData)}`);
+                    }).catch(() => {
+                        throw new Error('提交數據時出現未知網絡錯誤');
+                    });
+                }
+            })
+            .then(data => {
+                console.log('Formspree 回應:', data);
+                statusMessage.textContent = "數據已成功提交！";
+                statusMessage.className = "success";
+
+            })
+            .catch(error => {
+                console.error('提交錯誤:', error);
+                statusMessage.textContent = `提交數據失敗：${error.message}。但您的數據已在本地保存。請使用下載按鈕備份您的數據。`;
+                statusMessage.className = "error";
+            });
+        }
+
+        // 更新進度顯示
+        function updateProgress() {
+            const progressText = document.getElementById("progress-text");
+            const progressBar = document.getElementById("progress-bar");
+
+            progressText.textContent = `${currentStimulusIndex + 1}/${selectedStimuli.length}`;
+            progressBar.value = currentStimulusIndex + 1;
+            progressBar.max = selectedStimuli.length;
+        }
+
+        // 重新啟動實驗
+        function restartExperiment() {
+            currentStimulusIndex = 0;
+            experimentResults = {
+                participantId: '',
+                demographicInfo: {},
+                stimuli: [],
+                experimentSummary: {}
+            }; // 完全重置 experimentResults
+            selectedStimuli = []; // 清空選取的音樂
+            playCountsPerStimulus = []; // 重置播放次數
+
+            document.getElementById("completion-screen").classList.add("hidden");
+            document.getElementById("intro-screen").classList.remove("hidden");
+
+            // 重置表單字段
+            document.getElementById("age").value = "";
+            document.getElementById("gender").value = "";
+            document.getElementById("musical-background").value = "";
+            document.getElementById("theory").value = "";
+            document.getElementById("listen-frequency").value = "";
+            document.getElementById("live-frequency").value = "";
+            document.getElementById("listening-environment").value = "";
+            document.getElementById("participant-id").value = "";
+
+            // 清除狀態消息
+            const statusMessage = document.getElementById("status-message");
+            statusMessage.textContent = "";
+            statusMessage.className = "";
+            statusMessage.style.display = "none";
+
+            // 清除下載按鈕
+            const downloadBtn = document.querySelector("#completion-screen button:not(:first-child)");
+            if (downloadBtn) {
+                downloadBtn.remove();
+            }
+
+            // 確保實驗畫面中的問題區域被禁用
+            disableQuestionArea();
+            resetQuestionInputs(); // 確保所有問題輸入都重置
+            clearVisualization(); // 清除視覺化
+            const countDisplay = document.getElementById("play-count-display"); // 清除播放次數顯示
+            if (countDisplay) {
+                countDisplay.textContent = "";
+            }
+        }
+
+        // 打亂陣列 (Fisher-Yates algorithm)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 當頁面載入時，確保初始化其他曲風輸入框的顯示/隱藏
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初始化時隱藏其他曲風輸入框
+            handleGenreSelectChange();
+
+            // 添加監聽器來顯示/隱藏其他曲風輸入框
+            document.getElementById('genre-select').addEventListener('change', handleGenreSelectChange);
+
+            // 為 "最注意到哪個成分？" 添加「其他」輸入框的邏輯
+            const componentRadios = document.getElementsByName("component");
+            const componentRadioContainer = document.querySelector('.question:has(input[name="component"]) .rating-buttons'); // 找到組件的容器
+
+            // 檢查是否已存在「其他」選項，避免重複添加
+            if (componentRadioContainer && !componentRadioContainer.querySelector('input[value="other"]')) {
+                 const otherLabel = document.createElement('label');
+                 // 注意：這裡直接創建 input type="text"，不再包裝在 label 內
+                 // 這樣可以更好地控制其顯示和驗證
+                 otherLabel.innerHTML = `
+                    <input type="radio" name="component" value="other">其他 (請說明：
+                 `;
+                 const otherTextInput = document.createElement('input');
+                 otherTextInput.type = 'text';
+                 otherTextInput.id = 'other_component_text';
+                 otherTextInput.style.marginLeft = '5px';
+                 otherTextInput.style.width = '100px';
+                 otherTextInput.style.display = 'none'; // 預設隱藏
+                 otherLabel.appendChild(otherTextInput);
+                 componentRadioContainer.appendChild(otherLabel);
+            }
+            // 監聽 component radio 的變化來顯示/隱藏其他輸入框
+            if (componentRadioContainer) {
+                componentRadioContainer.addEventListener('change', (event) => {
+                    const otherComponentText = document.getElementById('other_component_text');
+                    if (event.target.value === 'other') {
+                        otherComponentText.style.display = 'inline-block';
+                    } else {
+                        otherComponentText.style.display = 'none';
+                        otherComponentText.value = ''; // 清空內容
+                    }
+                });
+            }
+            // 確保初始狀態隱藏
+            const initialOtherComponentText = document.getElementById('other_component_text');
+            if (initialOtherComponentText) {
+                initialOtherComponentText.style.display = 'none';
+            }
+
+            // 初始時禁用問題區塊
+            disableQuestionArea();
+        });
+
+
+    </script>
+</body>
+</html>
